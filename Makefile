@@ -23,7 +23,7 @@ install:		## Install dependencies
 	pip install -r requirements-test.txt
 	pip install -r requirements.txt
 
-STRESS_URL = http://127.0.0.1:8000 
+STRESS_URL = https://flight-delay-api-<PROJECT_ID>-uc.a.run.app 
 .PHONY: stress-test
 stress-test:
 	# change stress url to your deployed app 
@@ -43,3 +43,31 @@ api-test:			## Run tests and coverage
 .PHONY: build
 build:			## Build locally the python artifact
 	python setup.py bdist_wheel
+
+.PHONY: docker-build
+docker-build:		## Build production Docker image
+	docker build -t flight-delay-api .
+
+.PHONY: docker-build-dev
+docker-build-dev:	## Build development Docker image
+	docker build -f Dockerfile.dev -t flight-delay-api-dev .
+
+.PHONY: docker-run
+docker-run:		## Run production API in Docker
+	docker run -p 8000:8000 flight-delay-api
+
+.PHONY: docker-run-dev
+docker-run-dev:		## Run development API in Docker
+	docker run -p 8001:8000 flight-delay-api-dev
+
+.PHONY: docker-compose-up
+docker-compose-up:	## Start all services with docker-compose
+	docker-compose up --build
+
+.PHONY: docker-compose-dev
+docker-compose-dev:	## Start development service only
+	docker-compose up --build api-dev
+
+.PHONY: docker-compose-prod
+docker-compose-prod:	## Start production service only
+	docker-compose up --build api
