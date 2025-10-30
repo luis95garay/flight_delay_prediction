@@ -1,0 +1,127 @@
+name: "Continuous Delivery"
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: flight-delay-api
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push Docker image
+        run: |
+          # Build the Docker image
+          docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA .
+
+          # Push to Google Container Registry
+          docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
+
+          # Tag as latest
+          docker tag gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
+          docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE_NAME \
+            --image gcr.io/$PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA \
+            --platform managed \
+            --region $REGION \
+            --allow-unauthenticated \
+            --port 8000 \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --timeout 300 \
+            --concurrency 80 \
+            --set-env-vars PYTHONPATH=/app
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      - name: Get service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --platform managed --region $REGION --format 'value(status.url)')
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "Service deployed at: $SERVICE_URL"
+
+      - name: Run health check
+        run: |
+          SERVICE_URL=${{ steps.get-url.outputs.SERVICE_URL }}
+          echo "Testing service at: $SERVICE_URL"
+
+          # Wait for service to be ready
+          for i in {1..30}; do
+            if curl -f "$SERVICE_URL/health"; then
+              echo "Service is healthy!"
+              break
+            fi
+            echo "Attempt $i: Service not ready yet, waiting..."
+            sleep 10
+          done
+
+      - name: Run stress test
+        run: |
+          SERVICE_URL=${{ steps.get-url.outputs.SERVICE_URL }}
+          echo "Running stress test against: $SERVICE_URL"
+          mkdir -p reports
+
+          # Run stress test
+          locust -f tests/stress/api_stress.py \
+            --print-stats \
+            --html reports/stress-test.html \
+            --run-time 60s \
+            --headless \
+            --users 100 \
+            --spawn-rate 1 \
+            -H $SERVICE_URL || true
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-results
+          path: reports/stress-test.html
+
+      - name: Comment deployment status
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const serviceUrl = '${{ steps.get-url.outputs.SERVICE_URL }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Deployment successful!**\n\nService URL: ${serviceUrl}\n\nHealth check: ${serviceUrl}/health`
+            });
