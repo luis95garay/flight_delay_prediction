@@ -1,9 +1,14 @@
 name: "Continuous Delivery"
 
 on:
-  push:
-    branches: [main, develop]
+  repository_dispatch:
+    types: [trigger-cd]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
