@@ -15,7 +15,6 @@ class Settings(BaseModel):
     debug: bool = Field(default=False, env="DEBUG")
     
     # Model Settings - defaults to GCS bucket paths, can be overridden via environment variables
-    # Replace 'flights-bucket' with your actual bucket name
     model_path: str = Field(
         default="gs://flights-bucket-92837465/models/delay_model.pkl",
         env="MODEL_PATH"
