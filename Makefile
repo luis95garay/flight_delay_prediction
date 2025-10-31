@@ -23,6 +23,10 @@ install:		## Install dependencies
 	pip install -r requirements-test.txt
 	pip install -r requirements.txt
 
+.PHONY: train
+train:			## Train the model and save it to disk
+	python -m challenge.train
+
 STRESS_URL = https://flight-delay-api-n4pw2qn23q-uc.a.run.app
 .PHONY: stress-test
 stress-test:
