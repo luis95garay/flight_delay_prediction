@@ -8,8 +8,14 @@ services:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app
+      # GCP authentication (optional - only needed if using GCS)
+      # Uncomment if you have a service account key file:
+      # - GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
     volumes:
       - ./data:/app/data:ro # Mount data as read-only
+      # GCP credentials (optional - mount service account key for GCS access)
+      # Uncomment and ensure ./service-account-key.json exists:
+      # - ./service-account-key.json:/app/service-account-key.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -27,10 +33,16 @@ services:
       - "8001:8000"
     environment:
       - PYTHONPATH=/app
+      # GCP authentication (optional - only needed if using GCS)
+      # Uncomment if you have a service account key file:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/service-account-key.json
     volumes:
       - ./data:/app/data:ro
       - ./challenge:/app/challenge # Mount source code for development
       - ./tests:/app/tests
+      # GCP credentials (optional - mount service account key for GCS access)
+      # Uncomment and ensure ./service-account-key.json exists:
+      - ./service-account-key.json:/app/service-account-key.json:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -1,6 +1,7 @@
 """
 Main FastAPI application.
 """
+import os
 import logging
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,14 +46,20 @@ def get_model_service() -> ModelService:
     
     Returns:
         ModelService: The model service instance
+        
+    Raises:
+        RuntimeError: If the pre-trained model cannot be loaded
     """
     global _model_service
     if _model_service is None:
         _model_service = ModelService()
-        # Initialize the model
+        # Load the pre-trained model
         if not _model_service.initialize_model():
-            logger.error("Failed to initialize model service")
-            raise RuntimeError("Failed to initialize model service")
+            logger.error("Failed to load pre-trained model")
+            raise RuntimeError(
+                "Failed to load pre-trained model. Please run 'python -m challenge.train' "
+                "or 'make train' to train and save a model before starting the API."
+            )
     return _model_service
 
 
@@ -150,8 +157,47 @@ async def root():
 async def startup_event():
     """
     Application startup event.
+    Pre-loads the model to avoid cold start delays on first request.
     """
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
+    logger.info(f"Model path configured: {settings.model_path}")
+    
+    # Pre-initialize the model service on startup
+    # This ensures the model is loaded before the first request
+    try:
+        global _model_service
+        if _model_service is None:
+            logger.info(f"Initializing model service with model_path: {settings.model_path}")
+            
+            # Log environment info for debugging
+            creds_env = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+            if creds_env:
+                logger.info(f"GOOGLE_APPLICATION_CREDENTIALS is set to: {creds_env}")
+                if os.path.exists(creds_env):
+                    logger.info(f"Credentials file exists at: {creds_env}")
+                else:
+                    logger.warning(f"Credentials file NOT FOUND at: {creds_env}")
+            else:
+                logger.warning("GOOGLE_APPLICATION_CREDENTIALS not set")
+            
+            _model_service = ModelService()
+            if _model_service.initialize_model():
+                logger.info("Model loaded successfully during startup")
+            else:
+                logger.error("Failed to load model during startup - API will fail to start")
+                logger.error(f"Model path was: {settings.model_path}")
+                logger.error("Check the logs above for detailed error information")
+                raise RuntimeError("Model initialization failed")
+        else:
+            logger.info("Model service already initialized")
+    except Exception as e:
+        logger.error(f"Startup error: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        # Don't raise here - let FastAPI handle it through the dependency
+        # This allows health checks to still work
+    
     logger.info("Application startup completed")
 
 

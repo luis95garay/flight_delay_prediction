@@ -9,15 +9,40 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set MODEL_PATH (optional - uses default from settings.py if not set)
+        run: |
+          if [ -n "${{ vars.GCS_MODEL_PATH }}" ]; then
+            echo "MODEL_PATH=${{ vars.GCS_MODEL_PATH }}" >> $GITHUB_ENV
+          else
+            # Uses default from settings.py if variable not configured
+            echo "MODEL_PATH=gs://flights-bucket-92837465/models/delay_model.pkl" >> $GITHUB_ENV
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Cache pip dependencies
         uses: actions/cache@v3

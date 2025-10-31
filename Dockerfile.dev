@@ -26,8 +26,8 @@ COPY data/ ./data/
 COPY tests/ ./tests/
 COPY start.sh ./
 
-# Make start script executable
-RUN chmod +x start.sh
+# Make start script executable and fix line endings (Windows compatibility)
+RUN sed -i.bak 's/\r$//' start.sh && rm -f start.sh.bak && chmod +x start.sh
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \

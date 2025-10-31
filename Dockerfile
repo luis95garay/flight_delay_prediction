@@ -22,6 +22,9 @@ COPY challenge/ ./challenge/
 COPY data/ ./data/
 COPY start.sh ./
 
+# Make start script executable and fix line endings
+RUN sed -i.bak 's/\r$//' start.sh && rm -f start.sh.bak && chmod +x start.sh
+
 # Make start script executable
 RUN chmod +x start.sh
 

@@ -11,6 +11,7 @@ The repository follows a modular, layered architecture that promotes separation 
 ```
 challenge/
 ├── api.py                    # Main FastAPI application entry point
+├── train.py                  # Training script for model development
 ├── config/                   # Configuration management
 │   └── settings.py          # Application settings (Pydantic-based)
 ├── core/                     # Core functionality and infrastructure
@@ -55,6 +56,39 @@ The dataset exhibits significant class imbalance. To address this:
 - The `scale_pos_weight` parameter is dynamically calculated as `n_y0/n_y1` (ratio of non-delayed to delayed flights)
 - This ensures the model gives appropriate weight to the minority class (delayed flights) during training
 
+### Training Process
+
+Model training is performed using the dedicated `train.py` script located at `challenge/train.py`:
+
+**Key Features:**
+
+- **Flexible Data Loading**: Supports loading training data from local file system or Google Cloud Storage (GCS) buckets
+- **Flexible Model Storage**: Supports saving trained models to local file system or GCS buckets
+- **Command-Line Interface**: Provides easy-to-use CLI arguments for specifying data and model paths
+- **Environment Variables**: Can be configured via `DATA_PATH` and `MODEL_PATH` environment variables
+- **Comprehensive Logging**: Detailed logging for debugging and monitoring the training process
+
+**Usage Examples:**
+
+```bash
+# Train using default paths from settings
+python -m challenge.train
+```
+
+### Model Persistence
+
+The trained model is persisted and can be loaded from:
+
+- **Local File System**: Traditional pickle file storage for local development
+- **Google Cloud Storage (GCS)**: Cloud-based storage for production environments
+
+**Production Setup:**
+
+- Models are stored in a GCS bucket (default: `gs://flights-bucket-92837465/models/delay_model.pkl`)
+- Training data is loaded from GCS bucket (default: `gs://flights-bucket-92837465/data/data.csv`)
+- The API service automatically loads the model from GCS on startup
+- Supports seamless deployment to Cloud Run with proper service account permissions
+
 ### Future Improvements
 
 While the current model performs well, potential enhancements include:
@@ -64,6 +98,8 @@ While the current model performs well, potential enhancements include:
 - Feature engineering improvements (time-based features, airline-specific trends)
 - Consideration of Recall optimization for business-critical delay detection
 - Cross-validation for more robust model evaluation
+- Use a tool like airflow in order to automize and schedule training
+- Use tools like MLFLOW in order to handle model experiments and differentiate between production models
 
 ---
 
@@ -83,6 +119,10 @@ The API follows a clean, modular architecture with the following components:
 #### 2. **Service Layer** (`services/`)
 
 - **ModelService**: Handles model lifecycle (training, loading, saving)
+  - Supports loading models from local file system or Google Cloud Storage (GCS)
+  - Automatically detects GCS paths (starts with `gs://`)
+  - Handles authentication via `GOOGLE_APPLICATION_CREDENTIALS` or Application Default Credentials (ADC)
+  - Provides comprehensive error handling and logging for GCS operations
 - **PredictionService**: Orchestrates prediction workflow
 
 #### 3. **Data Validation** (`models/schemas.py`)
@@ -98,6 +138,10 @@ The API follows a clean, modular architecture with the following components:
 - Pydantic settings with default values
 - Supports `.env` files for local development
 - Centralized configuration for easy environment-specific adjustments
+- **GCS Integration**: Default paths configured for Google Cloud Storage
+  - `MODEL_PATH`: Path to trained model (default: GCS bucket)
+  - `DATA_PATH`: Path to training dataset (default: GCS bucket)
+  - Can be overridden via environment variables for different environments
 
 #### 5. **Error Handling** (`core/exceptions.py`)
 
