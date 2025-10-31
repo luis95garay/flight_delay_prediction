@@ -9,17 +9,21 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements.txt ./
+COPY requirements.txt requirements-dev.txt requirements-test.txt ./
 
-# Install Python dependencies (only production dependencies)
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (including dev and test)
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements-dev.txt \
+    && pip install --no-cache-dir -r requirements-test.txt
 
 # Copy application code
 COPY challenge/ ./challenge/
 COPY data/ ./data/
+COPY tests/ ./tests/
 COPY start.sh ./
 
 # Make start script executable
