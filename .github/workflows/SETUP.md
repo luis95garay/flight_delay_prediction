@@ -46,6 +46,81 @@ gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
+gcloud services enable storage.googleapis.com
+```
+
+## Crear bucket de Google Cloud Storage
+
+Para almacenar el modelo entrenado y los datos de entrenamiento, necesitas crear un bucket de Google Cloud Storage:
+
+### 1) Crear el bucket
+
+```bash
+# Reemplaza 'flights-bucket-92837465' con el nombre único que prefieras
+BUCKET_NAME="flights-bucket-92837465"
+
+gcloud storage buckets create gs://$BUCKET_NAME \
+  --project="$PROJECT_ID" \
+  --location=us-central1 \
+  --uniform-bucket-level-access
+```
+
+**Nota**: Los nombres de buckets deben ser globalmente únicos en todo Google Cloud Storage. Elige un nombre único y significativo.
+
+### 2) Crear estructura de carpetas
+
+```bash
+# Crear carpeta para modelos
+gcloud storage mkdir gs://$BUCKET_NAME/models
+
+# Crear carpeta para datos
+gcloud storage mkdir gs://$BUCKET_NAME/data
+```
+
+### 3) Subir los datos de entrenamiento
+
+```bash
+# Subir tu archivo de datos de entrenamiento
+gcloud storage cp /path/to/your/data.csv gs://$BUCKET_NAME/data/data.csv
+```
+
+**Nota**: Una vez que tengas el bucket creado y los datos subidos, puedes entrenar el modelo usando el script `train.py`:
+
+```bash
+python -m challenge.train \
+  --data-path gs://$BUCKET_NAME/data/data.csv \
+  --model-path gs://$BUCKET_NAME/models/delay_model.pkl
+```
+
+### 4) Otorgar permisos necesarios
+
+Asegúrate de que tu cuenta de servicio tenga permisos para leer/escribir en el bucket:
+
+```bash
+# Otorgar Storage Object Admin al servicio de Cloud Run (para leer modelo)
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:github-actions@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
+
+# O si prefieres solo permisos de lectura para Cloud Run:
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET_NAME \
+  --member="serviceAccount:YOUR_CLOUD_RUN_SA@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
+```
+
+### 5) Configurar variables de entorno en Cloud Run
+
+Después del despliegue, configura estas variables de entorno en Cloud Run:
+
+- `MODEL_PATH`: `gs://$BUCKET_NAME/models/delay_model.pkl`
+- `DATA_PATH`: `gs://$BUCKET_NAME/data/data.csv`
+
+Esto se puede hacer a través de la consola de GCP o mediante `gcloud`:
+
+```bash
+gcloud run services update flight-delay-api \
+  --region=us-central1 \
+  --set-env-vars="MODEL_PATH=gs://$BUCKET_NAME/models/delay_model.pkl,DATA_PATH=gs://$BUCKET_NAME/data/data.csv"
 ```
 
 ## Actualizar Makefile
